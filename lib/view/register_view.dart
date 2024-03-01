@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-//import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-//import 'package:hiddensig/view/login_view.dart';
 import 'package:hiddensig/firebase_options.dart';
 
 class RegisterView extends StatefulWidget {
@@ -92,7 +91,78 @@ class _RegisterViewState extends State<RegisterView> {
                     ),
                     ElevatedButton(
                       onPressed: () async {
-                        // Registration logic here
+                        final email = _email.text.trim();
+                        final password = _password.text.trim();
+                        final confirmPassword = _confirmPassword.text.trim();
+
+                        // Validate email format
+                        if (!RegExp(r"^[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+$")
+                            .hasMatch(email)) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Invalid email format')),
+                          );
+                          return;
+                        }
+
+                        // Validate password length
+                        if (password.length < 6) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content: Text(
+                                    'Password must be at least 6 characters long')),
+                          );
+                          return;
+                        }
+
+                        // Check if passwords match
+                        if (password != confirmPassword) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Passwords do not match')),
+                          );
+                          return;
+                        }
+
+                        try {
+                          final UserCredential userCredential =
+                              await FirebaseAuth.instance
+                                  .createUserWithEmailAndPassword(
+                                      email: email, password: password);
+
+                          // Send email verification
+                          await userCredential.user!.sendEmailVerification();
+
+                          print(
+                              'User registered: ${userCredential.user!.email}');
+
+                          // Prompt user to check their email for verification link
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                                content: Text(
+                                    'Verification email sent. Please check your email.')),
+                          );
+
+                          // You might want to wait for user to verify their email before allowing login
+                          // For demonstration purposes, you can navigate to login screen immediately
+                          Navigator.pushReplacementNamed(context, '/login');
+                        } on FirebaseAuthException catch (e) {
+                          if (e.code == 'weak-password') {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Weak password')),
+                            );
+                          } else if (e.code == 'email-already-in-use') {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Email already in use')),
+                            );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error: ${e.message}')),
+                            );
+                          }
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Error: $e')),
+                          );
+                        }
                       },
                       child: Text('Register'),
                     ),

@@ -75,33 +75,55 @@ class _LoginViewState extends State<LoginView> {
                         final password = _passwordController.text.trim();
 
                         try {
-                          await FirebaseAuth.instance
-                              .signInWithEmailAndPassword(
+                          final UserCredential userCredential =
+                              await FirebaseAuth.instance
+                                  .signInWithEmailAndPassword(
                             email: email,
                             password: password,
                           );
-                          // Navigate to home screen after successful login
+
+                          if (userCredential.user != null &&
+                              userCredential.user!.emailVerified) {
+                            Navigator.pushReplacementNamed(
+                                context, '/message_board');
+                            // Navigate to home screen after successful login
+                          } else {
+                            // User's email is not verified
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Please verify your email to login',
+                                ),
+                              ),
+                            );
+                          }
                         } on FirebaseAuthException catch (e) {
                           if (e.code == 'user-not-found') {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                  content:
-                                      Text('No user found for that email')),
+                                content: Text('No user found for that email'),
+                              ),
                             );
                           } else if (e.code == 'wrong-password') {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                  content: Text(
-                                      'Wrong password provided for that user')),
+                                content: Text(
+                                  'Wrong password provided for that user',
+                                ),
+                              ),
                             );
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error: ${e.message}')),
+                              SnackBar(
+                                content: Text('Error: ${e.message}'),
+                              ),
                             );
                           }
                         } catch (e) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Error: $e')),
+                            SnackBar(
+                              content: Text('Error: $e'),
+                            ),
                           );
                         }
                       },
