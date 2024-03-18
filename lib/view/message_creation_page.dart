@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:hiddensig/custom_bottom_navigation_bar.dart';
 
 class MessageCreationPage extends StatefulWidget {
   const MessageCreationPage({Key? key}) : super(key: key);
@@ -59,14 +60,14 @@ class _MessageCreationPageState extends State<MessageCreationPage> {
           context: context,
           builder: (context) {
             return AlertDialog(
-              title: Text('Warning'),
+              title: const Text('Warning'),
               content: Text('Word "$word" exceeds the limit of 44 characters.'),
               actions: [
                 TextButton(
                   onPressed: () {
                     Navigator.pop(context);
                   },
-                  child: Text('OK'),
+                  child: const Text('OK'),
                 ),
               ],
             );
@@ -100,8 +101,7 @@ class _MessageCreationPageState extends State<MessageCreationPage> {
   Future<void> _uploadToFirestore() async {
     try {
       if (_user == null) {
-        // Handle the case where the user is not authenticated
-        print('User not authenticated.');
+        // Handle the case where the user is not authenticated (do this later)
         return;
       }
 
@@ -115,7 +115,7 @@ class _MessageCreationPageState extends State<MessageCreationPage> {
           'location': entry.key + 1,
           'clicksToUnlock': _clicksToUnlock,
           'clicksRemain': _clicksToUnlock,
-          'wordLength': _convertedMessage[entry.key].length, // New element
+          'wordLength': _convertedMessage[entry.key].length,
         };
       }).toList();
 
@@ -133,19 +133,17 @@ class _MessageCreationPageState extends State<MessageCreationPage> {
       await FirebaseFirestore.instance.collection('messages').add({
         'userId': _user!.uid,
         'inputText': _messageController.text,
-        'hiddenInputText': hiddenInputText, // Add hiddenInputText here
-        'hiddenInputTextUpdate': hiddenInputText, // Add hiddenInputTextUpdate
-        'isMessageUnlock': false, // Add isMessageUnlock
+        'hiddenInputText': hiddenInputText,
+        'hiddenInputTextUpdate': hiddenInputText,
+        'isMessageUnlock': false,
         'totalClicksToUnlock': _clicksToUnlock * hiddenTextCount,
         'totalClicksRemain': _clicksToUnlock * hiddenTextCount,
         'hiddenTextCount': hiddenTextCount,
         'remainHiddenTextCount': hiddenTextCount,
         'hiddenTextInfo': hiddenTextInfo,
       });
-
-      print('Upload successful!');
     } catch (e) {
-      print('Error uploading to Firestore: $e');
+      //print('Error uploading to Firestore: $e');
     }
   }
 
@@ -199,7 +197,7 @@ class _MessageCreationPageState extends State<MessageCreationPage> {
                       '${currentLength ?? 0}/$maxLength',
                       style: TextStyle(
                         color: currentLength! <= maxLength!
-                            ? Colors.black
+                            ? Colors.grey
                             : Colors.red,
                       ),
                     ),
@@ -241,6 +239,12 @@ class _MessageCreationPageState extends State<MessageCreationPage> {
                                   _letterTapped[index] = !_letterTapped[index];
                                 });
                               },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _letterTapped[index]
+                                    ? Colors.white
+                                    : Colors.black,
+                                padding: EdgeInsets.zero,
+                              ),
                               child: Text(
                                 letter,
                                 style: TextStyle(
@@ -250,16 +254,10 @@ class _MessageCreationPageState extends State<MessageCreationPage> {
                                   fontSize: 14,
                                 ),
                               ),
-                              style: ElevatedButton.styleFrom(
-                                primary: _letterTapped[index]
-                                    ? Colors.white
-                                    : Colors.black,
-                                padding: EdgeInsets.zero,
-                              ),
                             ),
                           );
                         } else {
-                          return SizedBox.shrink();
+                          return const SizedBox.shrink();
                         }
                       },
                     ),
@@ -277,11 +275,11 @@ class _MessageCreationPageState extends State<MessageCreationPage> {
           children: [
             Row(
               children: [
-                Text(
+                const Text(
                   'Clicks to Unlock: ',
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Expanded(
                   flex: 0,
                   child: SizedBox(
@@ -290,7 +288,7 @@ class _MessageCreationPageState extends State<MessageCreationPage> {
                     child: TextFormField(
                       keyboardType: TextInputType.number,
                       textAlign: TextAlign.center,
-                      decoration: InputDecoration(
+                      decoration: const InputDecoration(
                         border: OutlineInputBorder(),
                       ),
                       onChanged: (value) {
@@ -312,29 +310,36 @@ class _MessageCreationPageState extends State<MessageCreationPage> {
                 ),
               ],
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Text(
               'Hidden Text Count: $hiddenTextCount',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(
               'Hidden Words: ${hiddenWords.join(", ")}',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(
               'Hidden Text Locations: $hiddenTextLocations',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
-            SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                _uploadToFirestore();
-              },
-              child: Text('Upload'),
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: ElevatedButton(
+                onPressed: () {
+                  _uploadToFirestore();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const HomeScreen()),
+                  );
+                },
+                child: const Text('Upload'),
+              ),
             ),
           ],
         ),

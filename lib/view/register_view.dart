@@ -94,12 +94,14 @@ class _RegisterViewState extends State<RegisterView> {
                         final email = _email.text.trim();
                         final password = _password.text.trim();
                         final confirmPassword = _confirmPassword.text.trim();
+                        final scaffoldMessenger = ScaffoldMessenger.of(context);
 
                         // Validate email format
                         if (!RegExp(r"^[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+$")
                             .hasMatch(email)) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Invalid email format')),
+                            const SnackBar(
+                                content: Text('Invalid email format')),
                           );
                           return;
                         }
@@ -107,7 +109,7 @@ class _RegisterViewState extends State<RegisterView> {
                         // Validate password length
                         if (password.length < 6) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
+                            const SnackBar(
                                 content: Text(
                                     'Password must be at least 6 characters long')),
                           );
@@ -117,7 +119,8 @@ class _RegisterViewState extends State<RegisterView> {
                         // Check if passwords match
                         if (password != confirmPassword) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Passwords do not match')),
+                            const SnackBar(
+                                content: Text('Passwords do not match')),
                           );
                           return;
                         }
@@ -131,12 +134,11 @@ class _RegisterViewState extends State<RegisterView> {
                           // Send email verification
                           await userCredential.user!.sendEmailVerification();
 
-                          print(
-                              'User registered: ${userCredential.user!.email}');
+                          // print('User registered: ${userCredential.user!.email}');
 
                           // Prompt user to check their email for verification link
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
+                          scaffoldMessenger.showSnackBar(
+                            const SnackBar(
                                 content: Text(
                                     'Verification email sent. Please check your email.')),
                           );
@@ -146,25 +148,26 @@ class _RegisterViewState extends State<RegisterView> {
                           Navigator.pushReplacementNamed(context, '/login');
                         } on FirebaseAuthException catch (e) {
                           if (e.code == 'weak-password') {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Weak password')),
+                            scaffoldMessenger.showSnackBar(
+                              const SnackBar(content: Text('Weak password')),
                             );
                           } else if (e.code == 'email-already-in-use') {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Email already in use')),
+                            scaffoldMessenger.showSnackBar(
+                              const SnackBar(
+                                  content: Text('Email already in use')),
                             );
                           } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            scaffoldMessenger.showSnackBar(
                               SnackBar(content: Text('Error: ${e.message}')),
                             );
                           }
                         } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          scaffoldMessenger.showSnackBar(
                             SnackBar(content: Text('Error: $e')),
                           );
                         }
                       },
-                      child: Text('Register'),
+                      child: const Text('Register'),
                     ),
                   ],
                 ),

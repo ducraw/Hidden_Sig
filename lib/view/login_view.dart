@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hiddensig/firebase_options.dart';
 
 class LoginView extends StatefulWidget {
@@ -50,7 +51,7 @@ class _LoginViewState extends State<LoginView> {
                       decoration:
                           const InputDecoration(hintText: "Enter your email"),
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     TextField(
                       controller: _passwordController,
                       obscureText: !_isPasswordVisible,
@@ -68,7 +69,7 @@ class _LoginViewState extends State<LoginView> {
                         ),
                       ),
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: () async {
                         final email = _emailController.text.trim();
@@ -84,9 +85,25 @@ class _LoginViewState extends State<LoginView> {
 
                           if (userCredential.user != null &&
                               userCredential.user!.emailVerified) {
-                            Navigator.pushReplacementNamed(
-                                context, '/message_board');
-                            // Navigate to home screen after successful login
+                            // Check if a document with the same userId exists
+                            QuerySnapshot<Map<String, dynamic>> existingDocs =
+                                await FirebaseFirestore.instance
+                                    .collection('userInfo')
+                                    .where('userId',
+                                        isEqualTo: userCredential.user!.uid)
+                                    .get();
+
+                            if (existingDocs.docs.isNotEmpty) {
+                              // If a document with the same userId exists,
+                              // redirect to MessageBoardView
+                              Navigator.pushReplacementNamed(
+                                  context, '/bottom');
+                            } else {
+                              // If no document with the same userId exists,
+                              // redirect to ProfileCreationView
+                              Navigator.pushReplacementNamed(
+                                  context, '/profile_creation');
+                            }
                           } else {
                             // User's email is not verified
                             ScaffoldMessenger.of(context).showSnackBar(

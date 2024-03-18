@@ -4,14 +4,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 //import 'message_creation_page.dart';
 import 'all_comments_page.dart';
 
-class MessageBoardView extends StatefulWidget {
-  const MessageBoardView({Key? key}) : super(key: key);
+class MessageBoardViewGlobal extends StatefulWidget {
+  const MessageBoardViewGlobal({Key? key}) : super(key: key);
 
   @override
-  State<MessageBoardView> createState() => _MessageBoardViewState();
+  State<MessageBoardViewGlobal> createState() => _MessageBoardViewGlobalState();
 }
 
-class _MessageBoardViewState extends State<MessageBoardView> {
+class _MessageBoardViewGlobalState extends State<MessageBoardViewGlobal> {
   late CollectionReference _messagesCollection;
   late CollectionReference _userInfoCollection;
   final Map<String, TextEditingController> _commentControllers = {};
@@ -50,9 +50,9 @@ class _MessageBoardViewState extends State<MessageBoardView> {
       // Check if the current user is the uploader of the message
       if (currentUser != null && currentUser.uid == userId) {
         await _messagesCollection.doc(messageId).delete();
-        print('Message deleted successfully');
+        //print('Message deleted successfully');
       } else {
-        print('You are not authorized to delete this message.');
+        //print('You are not authorized to delete this message.');
         // You can show a snackbar or dialog indicating the user is not authorized
       }
     } catch (e) {
@@ -181,8 +181,8 @@ class _MessageBoardViewState extends State<MessageBoardView> {
           );
 
           return SizedBox(
-            width: textPainter.width + 1, // Adjust padding as needed
-            height: 30, // Adjust height as needed
+            width: textPainter.width + 1.5, // Adjust padding as needed
+            height: 25, // Adjust height as needed
             child: InkWell(
               onTap: isHidden
                   ? null
@@ -255,7 +255,7 @@ class _MessageBoardViewState extends State<MessageBoardView> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Your Messages'),
+        title: Text('Global Message Board'),
         actions: [
           IconButton(
             icon: Icon(Icons.logout),
@@ -342,10 +342,7 @@ class _MessageBoardViewState extends State<MessageBoardView> {
                   // Check if the current user is the uploader
                   bool isUploader = currentUser != null &&
                       currentUser.uid == messageData['userId'];
-                  if (!isUploader) {
-                    // If the current user is not the uploader, return an empty container
-                    return Container();
-                  }
+
                   return Container(
                     margin: EdgeInsets.all(8.0),
                     padding: EdgeInsets.all(8.0),
