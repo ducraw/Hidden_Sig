@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-//import 'message_creation_page.dart';
+//import 'package:cloud_firestore/cloud_firestore.dart';
 import 'all_comments_page.dart';
+import 'dart:convert';
+import 'dart:developer' as developer;
+import 'package:http/http.dart' as http;
 
 class MessageBoardView extends StatefulWidget {
   const MessageBoardView({Key? key}) : super(key: key);
 
   @override
-  State<MessageBoardView> createState() => _MessageBoardViewState();
+  State<MessageBoardView> createState() => _MessageBoardView();
 }
 
-class _MessageBoardViewState extends State<MessageBoardView> {
-  late CollectionReference _messagesCollection;
-  late CollectionReference _userInfoCollection;
+class _MessageBoardView extends State<MessageBoardView> {
+  //late final CollectionReference<Map<String, dynamic>> _messagesCollection;
+  //late final CollectionReference<Map<String, dynamic>> _userInfoCollection;
   final Map<String, TextEditingController> _commentControllers = {};
   final ScrollController _scrollController = ScrollController();
   double _savedScrollOffset = 0;
@@ -21,9 +23,40 @@ class _MessageBoardViewState extends State<MessageBoardView> {
   @override
   void initState() {
     super.initState();
-    _messagesCollection = FirebaseFirestore.instance.collection('messages');
-    _userInfoCollection = FirebaseFirestore.instance.collection('userInfo');
+    //_messagesCollection = FirebaseFirestore.instance.collection('messages');
+    //_userInfoCollection = FirebaseFirestore.instance.collection('userInfo');
     _scrollController.addListener(_saveScrollPosition);
+  }
+
+  Future<Map<String, dynamic>> fetchUserInfo(String userId) async {
+    try {
+      final response =
+          await http.get(Uri.parse('http://10.0.2.2:3000/api/user/$userId'));
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      } else {
+        throw Exception('Failed to load user information');
+      }
+    } catch (error) {
+      throw Exception('Failed to load user information: $error');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchMessageInfo() async {
+    try {
+      final response =
+          await http.get(Uri.parse('http://10.0.2.2:3000/api/messages'));
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        final List<Map<String, dynamic>> messages =
+            List<Map<String, dynamic>>.from(data);
+        return messages;
+      } else {
+        throw Exception('Failed to load messages');
+      }
+    } catch (error) {
+      throw Exception('Failed to load messages: $error');
+    }
   }
 
   @override
@@ -37,59 +70,48 @@ class _MessageBoardViewState extends State<MessageBoardView> {
     _savedScrollOffset = _scrollController.offset;
   }
 
-  Future<void> _signOut() async {
+  Future<void> _signOut(NavigatorState navigatorState) async {
     await FirebaseAuth.instance.signOut();
-    Navigator.pushReplacementNamed(context, '/login');
+    navigatorState.pushReplacementNamed('/login');
   }
 
   Future<void> _removeMessage(String messageId, String userId) async {
     try {
-      // Get current user
-      User? currentUser = FirebaseAuth.instance.currentUser;
+      final currentUser = FirebaseAuth.instance.currentUser;
 
-      // Check if the current user is the uploader of the message
       if (currentUser != null && currentUser.uid == userId) {
-        await _messagesCollection.doc(messageId).delete();
-        print('Message deleted successfully');
+        //final token = await currentUser.getIdToken();
+
+        final response = await http.delete(
+          Uri.parse('http://10.0.2.2:3000/api/messages/$messageId/$userId'),
+        );
+        int a = response.statusCode;
+        String b = currentUser.uid;
+        String c = userId;
+        if (response.statusCode == 200) {
+          // Message deleted successfully
+        } else {
+          developer.log('Error deleting message: $a');
+          developer.log('Error deleting message: $b , $c');
+        }
       } else {
-        print('You are not authorized to delete this message.');
-        // You can show a snackbar or dialog indicating the user is not authorized
+        developer.log('Error  message');
       }
     } catch (e) {
-      print('Error deleting message: $e');
+      developer.log('Error deleting message: $e');
     }
   }
 
   Future<void> _likeComment(String messageId, int commentIndex) async {
     try {
-      // Get the current message data
-      var messageSnapshot = await _messagesCollection.doc(messageId).get();
-      var messageData = messageSnapshot.data() as Map<String, dynamic>;
-      var comments = messageData['comments'];
-
-      if (comments != null &&
-          commentIndex < (comments as List<dynamic>).length) {
-        var comment = (comments as List<dynamic>)[commentIndex];
-
-        // Ensure comment is a Map before accessing properties
-        if (comment is Map<String, dynamic>) {
-          var likes = (comment['likes'] ?? 0) + 1; // Increment likes
-          comment['likes'] = likes;
-
-          // Update the comment data in Firestore
-          (comments as List<dynamic>)[commentIndex] = comment;
-
-          // Sort comments based on likes count
-          (comments as List<dynamic>)
-              .sort((a, b) => b['likes'].compareTo(a['likes']));
-
-          // Update sorted comments in Firestore
-          await _messagesCollection
-              .doc(messageId)
-              .update({'comments': comments});
-
-          print('Comment liked successfully');
-        }
+      final response = await http.put(
+        Uri.parse(
+            'http://10.0.2.2:3000/api/messages/$messageId/comments/$commentIndex/like'),
+      );
+      if (response.statusCode == 200) {
+        // Comment liked successfully
+      } else {
+        // Handle error
       }
     } catch (e) {
       print('Error liking comment: $e');
@@ -98,57 +120,82 @@ class _MessageBoardViewState extends State<MessageBoardView> {
 
   Future<void> _addComment(String messageId, String comment) async {
     try {
-      await _messagesCollection.doc(messageId).update({
-        'comments': FieldValue.arrayUnion([
-          {
-            'text': comment,
-            'likes': 0,
-          }
-        ]),
-      });
-      print('Comment added successfully in the database');
+      final response = await http.post(
+        Uri.parse('http://10.0.2.2:3000/api/messages/$messageId/comments'),
+        body: jsonEncode({'text': comment, 'likes': 0}),
+        headers: {'Content-Type': 'application/json'},
+      );
+      if (response.statusCode == 201) {
+        // Comment added successfully
+      } else {
+        // Handle error
+      }
     } catch (e) {
-      print('Error adding comment in the database: $e');
+      // Handle network error
     }
   }
 
   Future<void> _updateClicksRemain(
       String messageId, List<dynamic> hiddenTextInfo, int infoIndex) async {
-    print(infoIndex);
     try {
-      // Reduce clicksRemain by 1
-      hiddenTextInfo[infoIndex]['clicksRemain'] -= 1;
-
-      await _messagesCollection.doc(messageId).update({
-        'hiddenTextInfo': hiddenTextInfo,
-      });
-      print('TotalClicksRemain updated successfully in the database');
+      final response = await http.put(
+        Uri.parse(
+            'http://10.0.2.2:3000/api/messages/$messageId/updateClicksRemain'),
+        body: jsonEncode({
+          'hiddenTextInfo': hiddenTextInfo,
+          'infoIndex': infoIndex,
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
+      if (response.statusCode == 200) {
+        // Clicks remain updated successfully
+      } else {
+        // Handle error
+      }
     } catch (e) {
-      print('Error updating totalClicksRemain in the database: $e');
-    }
-  }
-
-  Future<void> _updateTotalClicksRemainInDatabase(
-      String messageId, int newTotalClicksRemain) async {
-    try {
-      await _messagesCollection.doc(messageId).update({
-        'totalClicksRemain': newTotalClicksRemain,
-      });
-      print('TotalClicksRemain updated successfully in the database');
-    } catch (e) {
-      print('Error updating totalClicksRemain in the database: $e');
+      // Handle error
     }
   }
 
   Future<void> _updateHiddenInputTextInDatabase(
       String messageId, String updatedHiddenInputText) async {
     try {
-      await _messagesCollection.doc(messageId).update({
-        'hiddenInputTextUpdate': updatedHiddenInputText,
-      });
-      print('HiddenInputText updated successfully in the database');
+      final response = await http.put(
+        Uri.parse(
+            'http://10.0.2.2:3000/api/messages/$messageId/updateHiddenInputText'),
+        body: jsonEncode({
+          'updatedHiddenInputText': updatedHiddenInputText,
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
+      if (response.statusCode == 200) {
+        print('Hidden input text updated successfully');
+      } else {
+        print('Failed to update hidden input text');
+      }
     } catch (e) {
-      print('Error updating hiddenInputText in the database: $e');
+      print('Error updating hidden input text: $e');
+    }
+  }
+
+  Future<void> _updateTotalClicksRemainInDatabase(
+      String messageId, int newTotalClicksRemain) async {
+    try {
+      final response = await http.put(
+        Uri.parse(
+            'http://10.0.2.2:3000/api/messages/$messageId/updateTotalClicksRemain'),
+        body: jsonEncode({
+          'newTotalClicksRemain': newTotalClicksRemain,
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
+      if (response.statusCode == 200) {
+        print('Total clicks remain updated successfully');
+      } else {
+        print('Failed to update total clicks remain');
+      }
+    } catch (e) {
+      print('Error updating total clicks remain: $e');
     }
   }
 
@@ -170,44 +217,38 @@ class _MessageBoardViewState extends State<MessageBoardView> {
           final textPainter = TextPainter(
             text: TextSpan(
               text: hiddenInputText[index],
-              style: TextStyle(fontSize: 16.0),
+              style: const TextStyle(fontSize: 16.0),
             ),
             textDirection: TextDirection.ltr,
           )..layout();
 
-          // Declare infoIndex here
-          int infoIndex = hiddenTextInfo.indexWhere(
-            (info) => info['location'] == index + 1,
-          );
+          final infoIndex = hiddenTextInfo
+              .indexWhere((info) => info['location'] == index + 1);
 
           return SizedBox(
-            width: textPainter.width + 1, // Adjust padding as needed
-            height: 30, // Adjust height as needed
+            width: textPainter.width + 1.5,
+            height: 25,
             child: InkWell(
               onTap: isHidden
                   ? null
                   : () {
-                      setState(() {
+                      {
                         if (infoIndex != -1) {
                           _updateClicksRemain(
                               messageId, hiddenTextInfo, infoIndex);
-                          // Update totalClicksRemain in firestore
                           _updateTotalClicksRemainInDatabase(
                               messageId, totalClicksRemain - 1);
-
-                          // If clicksRemain reaches 0, do the normal onTap event
-                          if (hiddenTextInfo[infoIndex]['clicksRemain'] == 0) {
+                          if (hiddenTextInfo[infoIndex]['clicksRemain'] <= 1) {
                             hiddenInputText[index] =
                                 hiddenTextInfo[infoIndex]['word'];
                             _updateHiddenInputTextInDatabase(
                                 messageId, hiddenInputText.join(' '));
                           }
                         }
-                      });
+                      }
                     },
               child: Container(
-                padding: EdgeInsets.symmetric(
-                    horizontal: 0, vertical: 0), // Adjust padding as needed
+                padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: isHidden ? Colors.black : Colors.white,
@@ -217,24 +258,22 @@ class _MessageBoardViewState extends State<MessageBoardView> {
                   children: [
                     Text(
                       hiddenInputText[index],
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 16.0,
                         color: Colors.white,
                       ),
                     ),
-                    if (!isHidden &&
-                        infoIndex !=
-                            -1) // Render "Clicks Remain" only when isHidden is true and infoIndex exists
+                    if (!isHidden && infoIndex != -1)
                       Positioned(
                         top: 0,
                         bottom: 0,
                         right: 0,
                         left: 0,
                         child: Text(
-                          "${hiddenTextInfo[infoIndex]['clicksRemain']}",
-                          style: TextStyle(
+                          '${hiddenTextInfo[infoIndex]['clicksRemain']}',
+                          style: const TextStyle(
                             fontSize: 18.0,
-                            color: Colors.black, // Adjust color as needed
+                            color: Colors.black,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -245,7 +284,7 @@ class _MessageBoardViewState extends State<MessageBoardView> {
             ),
           );
         } else {
-          return SizedBox.shrink();
+          return const SizedBox.shrink();
         }
       }),
     );
@@ -255,26 +294,33 @@ class _MessageBoardViewState extends State<MessageBoardView> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Your Messages'),
+        title: const Text('Your Message Board'),
         actions: [
           IconButton(
-            icon: Icon(Icons.logout),
-            onPressed: _signOut,
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              setState(() {}); // Trigger refresh logic here
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              await _signOut(Navigator.of(context));
+            },
           ),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: _messagesCollection.snapshots(),
+      body: FutureBuilder(
+        future: fetchMessageInfo(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));
           }
-          final messages = snapshot.data!.docs;
+          final messages = snapshot.data!;
 
-          // Restore the scroll position when the widget is rebuilt
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _scrollController.jumpTo(_savedScrollOffset);
           });
@@ -284,7 +330,9 @@ class _MessageBoardViewState extends State<MessageBoardView> {
             itemCount: messages.length,
             itemBuilder: (context, index) {
               final message = messages[index];
-              final messageData = message.data() as Map<String, dynamic>;
+              final messageData = message;
+
+              final messageId = message['docId'];
               final List<dynamic> hiddenTextInfo =
                   messageData['hiddenTextInfo'] ?? [];
               final List<String> hiddenInputText =
@@ -294,61 +342,50 @@ class _MessageBoardViewState extends State<MessageBoardView> {
               final int totalClicksRemain =
                   messageData['totalClicksRemain'] ?? 0;
 
-              // Check if controller already exists for this message
-              if (!_commentControllers.containsKey(message.id)) {
-                // If not, create a new controller
-                _commentControllers[message.id] = TextEditingController();
+              if (!_commentControllers.containsKey(messageId)) {
+                _commentControllers[messageId] = TextEditingController();
               }
 
-              // Retrieve the controller for this message
-              TextEditingController commentController =
-                  _commentControllers[message.id]!;
+              final TextEditingController commentController =
+                  _commentControllers[messageId]!;
 
-              // Get comments
               List<Map<String, dynamic>> comments = [];
 
               if (messageData['comments'] != null) {
-                comments = (messageData['comments'] as List<dynamic>)
+                comments = (messageData['comments'] as List)
                     .cast<Map<String, dynamic>>();
               }
 
-              // Sort comments based on likes
               comments.sort(
                   (a, b) => (b['likes'] as int).compareTo(a['likes'] as int));
 
-              // Limit comments to 3
               final limitedComments =
                   comments.length > 3 ? comments.sublist(0, 3) : comments;
-
-              return StreamBuilder<QuerySnapshot>(
-                stream: _userInfoCollection
-                    .where('userId', isEqualTo: messageData['userId'])
-                    .snapshots(),
+              return FutureBuilder(
+                future: fetchUserInfo(messageData['userId']),
                 builder: (context, userSnapshot) {
                   if (userSnapshot.connectionState == ConnectionState.waiting) {
-                    return CircularProgressIndicator();
+                    return const CircularProgressIndicator();
                   }
 
                   if (userSnapshot.hasError) {
                     return Text('Error: ${userSnapshot.error}');
                   }
 
-                  var userData = userSnapshot.data!.docs.first.data()
-                      as Map<String, dynamic>;
-                  var profileImageUrl = userData['imageUrl'];
-                  var displayName = userData['displayName'];
-                  User? currentUser = FirebaseAuth.instance.currentUser;
+                  final userData = userSnapshot.data!;
+                  final profileImageUrl = userData['imageUrl'] as String;
+                  final displayName = userData['displayName'] as String;
+                  final currentUser = FirebaseAuth.instance.currentUser;
 
-                  // Check if the current user is the uploader
                   bool isUploader = currentUser != null &&
                       currentUser.uid == messageData['userId'];
                   if (!isUploader) {
-                    // If the current user is not the uploader, return an empty container
                     return Container();
                   }
+
                   return Container(
-                    margin: EdgeInsets.all(8.0),
-                    padding: EdgeInsets.all(8.0),
+                    margin: const EdgeInsets.all(8.0),
+                    padding: const EdgeInsets.all(8.0),
                     decoration: BoxDecoration(
                       color: Colors.black,
                       borderRadius: BorderRadius.circular(8.0),
@@ -357,7 +394,7 @@ class _MessageBoardViewState extends State<MessageBoardView> {
                           color: Colors.grey.withOpacity(0.5),
                           spreadRadius: 2,
                           blurRadius: 7,
-                          offset: Offset(0, 3),
+                          offset: const Offset(0, 3),
                         ),
                       ],
                     ),
@@ -370,30 +407,29 @@ class _MessageBoardViewState extends State<MessageBoardView> {
                           ),
                           trailing: isUploader
                               ? IconButton(
-                                  icon: Icon(Icons.delete),
+                                  icon: const Icon(Icons.delete),
                                   onPressed: () {
                                     _removeMessage(
-                                        message.id, messageData['userId']);
+                                        messageId, messageData['userId']);
+                                    setState(() {});
                                   },
                                 )
-                              : SizedBox(),
+                              : const SizedBox(),
                         ),
                         Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: _buildHiddenInputButtons(
-                            hiddenTextInfo,
-                            message.id,
-                            hiddenInputText,
-                            inputTextFromDatabase,
-                            totalClicksRemain,
-                          ),
-                        ),
-                        // Display limited comments
+                            padding: const EdgeInsets.all(8.0),
+                            child: _buildHiddenInputButtons(
+                              hiddenTextInfo,
+                              messageId,
+                              hiddenInputText,
+                              inputTextFromDatabase,
+                              totalClicksRemain,
+                            )),
                         if (limitedComments.isNotEmpty)
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Comments:'),
+                              const Text('Comments:'),
                               for (int i = 0; i < limitedComments.length; i++)
                                 ListTile(
                                   title: Text(limitedComments[i]['text']),
@@ -402,9 +438,9 @@ class _MessageBoardViewState extends State<MessageBoardView> {
                                       Text(
                                           'Likes: ${limitedComments[i]['likes']}'),
                                       IconButton(
-                                        icon: Icon(Icons.thumb_up),
+                                        icon: const Icon(Icons.thumb_up),
                                         onPressed: () {
-                                          _likeComment(message.id, i);
+                                          _likeComment(messageId, i);
                                         },
                                       ),
                                     ],
@@ -415,36 +451,35 @@ class _MessageBoardViewState extends State<MessageBoardView> {
                         if (comments.length > 3)
                           TextButton(
                             onPressed: () {
-                              // Navigate to a new page to display all comments
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => AllCommentsPage(
                                     comments: comments,
-                                    messageId: message.id,
+                                    messageId: messageId,
                                   ),
                                 ),
                               );
                             },
-                            child: Text('View all comments'),
+                            child: const Text('View all comments'),
                           ),
-                        Divider(color: Colors.grey),
+                        const Divider(color: Colors.grey),
                         Row(
                           children: [
                             Expanded(
                               child: TextField(
                                 controller: commentController,
-                                decoration: InputDecoration(
+                                decoration: const InputDecoration(
                                   hintText: 'Add a comment...',
                                 ),
                               ),
                             ),
                             IconButton(
-                              icon: Icon(Icons.send),
+                              icon: const Icon(Icons.send),
                               onPressed: () {
                                 if (commentController.text.isNotEmpty) {
                                   _addComment(
-                                      message.id, commentController.text);
+                                      messageId, commentController.text);
                                   commentController.clear();
                                 }
                               },

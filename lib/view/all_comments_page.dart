@@ -3,26 +3,25 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AllCommentsPage extends StatefulWidget {
   final List<Map<String, dynamic>> comments;
-  final String messageId; // Add messageId
+  final String messageId;
 
   const AllCommentsPage({
     Key? key,
     required this.comments,
-    required this.messageId, // Add messageId parameter
+    required this.messageId,
   }) : super(key: key);
 
   @override
-  _AllCommentsPageState createState() => _AllCommentsPageState();
+  State<AllCommentsPage> createState() => _AllCommentsPageState();
 }
 
 class _AllCommentsPageState extends State<AllCommentsPage> {
-  late CollectionReference _messagesCollection; // Add collection reference
+  late CollectionReference _messagesCollection;
 
   @override
   void initState() {
     super.initState();
-    _messagesCollection = FirebaseFirestore.instance
-        .collection('messages'); // Initialize collection reference
+    _messagesCollection = FirebaseFirestore.instance.collection('messages');
   }
 
   Future<void> _likeComment(int commentIndex) async {
@@ -31,18 +30,14 @@ class _AllCommentsPageState extends State<AllCommentsPage> {
           await _messagesCollection.doc(widget.messageId).get();
       var messageData = messageSnapshot.data() as Map<String, dynamic>;
       var comments = messageData['comments'];
-
-      if (comments != null &&
-          commentIndex < (comments as List<dynamic>).length) {
-        var comment = (comments as List<dynamic>)[commentIndex];
+      if (comments != null && commentIndex < comments.length) {
+        var comment = comments[commentIndex];
 
         if (comment is Map<String, dynamic>) {
           var likes = (comment['likes'] ?? 0) + 1;
           comment['likes'] = likes;
 
-          (comments as List<dynamic>)[commentIndex] = comment;
-
-          // Update sorted comments in Firestore
+          comments[commentIndex] = comment;
           await _messagesCollection
               .doc(widget.messageId)
               .update({'comments': comments});
@@ -50,8 +45,6 @@ class _AllCommentsPageState extends State<AllCommentsPage> {
           setState(() {
             widget.comments[commentIndex]['likes'] = likes;
           });
-
-          //print('Comment liked successfully');
         }
       }
     } catch (e) {
@@ -63,20 +56,20 @@ class _AllCommentsPageState extends State<AllCommentsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('All Comments'),
+        title: const Text('All Comments'),
       ),
       body: ListView.builder(
         itemCount: widget.comments.length,
         itemBuilder: (context, index) {
           final comment = widget.comments[index];
-          Text('Comments:');
+          const Text('Comments:');
           return ListTile(
             title: Text(comment['text']),
             subtitle: Row(
               children: [
                 Text('Likes: ${comment['likes']}'),
                 IconButton(
-                  icon: Icon(Icons.thumb_up),
+                  icon: const Icon(Icons.thumb_up),
                   onPressed: () {
                     _likeComment(index);
                   },

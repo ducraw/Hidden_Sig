@@ -95,8 +95,8 @@ class _RegisterViewState extends State<RegisterView> {
                         final password = _password.text.trim();
                         final confirmPassword = _confirmPassword.text.trim();
                         final scaffoldMessenger = ScaffoldMessenger.of(context);
+                        final navigator = Navigator.of(context);
 
-                        // Validate email format
                         if (!RegExp(r"^[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+$")
                             .hasMatch(email)) {
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -106,7 +106,6 @@ class _RegisterViewState extends State<RegisterView> {
                           return;
                         }
 
-                        // Validate password length
                         if (password.length < 6) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -116,7 +115,6 @@ class _RegisterViewState extends State<RegisterView> {
                           return;
                         }
 
-                        // Check if passwords match
                         if (password != confirmPassword) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -130,22 +128,14 @@ class _RegisterViewState extends State<RegisterView> {
                               await FirebaseAuth.instance
                                   .createUserWithEmailAndPassword(
                                       email: email, password: password);
-
-                          // Send email verification
                           await userCredential.user!.sendEmailVerification();
-
-                          // print('User registered: ${userCredential.user!.email}');
-
-                          // Prompt user to check their email for verification link
                           scaffoldMessenger.showSnackBar(
                             const SnackBar(
                                 content: Text(
                                     'Verification email sent. Please check your email.')),
                           );
 
-                          // You might want to wait for user to verify their email before allowing login
-                          // For demonstration purposes, you can navigate to login screen immediately
-                          Navigator.pushReplacementNamed(context, '/login');
+                          navigator.pushReplacementNamed('login');
                         } on FirebaseAuthException catch (e) {
                           if (e.code == 'weak-password') {
                             scaffoldMessenger.showSnackBar(

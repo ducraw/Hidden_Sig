@@ -5,77 +5,88 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart' as firebase_storage;
 import 'dart:io';
 
+enum FieldValidationState { initial, valid, invalid }
+
 class EditProfileView extends StatefulWidget {
   const EditProfileView({Key? key}) : super(key: key);
 
   @override
-  _EditProfileViewState createState() => _EditProfileViewState();
+  State<EditProfileView> createState() => _ProfileCreationViewState();
 }
 
-class _EditProfileViewState extends State<EditProfileView> {
+class _ProfileCreationViewState extends State<EditProfileView> {
+  late final TextEditingController _usernameController;
   late final TextEditingController _displayNameController;
   late final TextEditingController _bioController;
   late String? _userId;
+  File? _imageFile; // Initialize _imageFile with null
+  Offset _imagePosition =
+      Offset.zero; // Initialize _imagePosition with Offset.zero
   String _imageUrl = '';
-  File? _imageFile;
-  Offset _imagePosition = Offset.zero;
-  bool _isLoading = true;
+  FieldValidationState _usernameValidationState = FieldValidationState.initial;
+  FieldValidationState _displayNameValidationState =
+      FieldValidationState.initial;
+  bool _isLoading =
+      true; // Variable to track whether the image is loading or not
 
   @override
   void initState() {
-    super.initState();
+    _usernameController = TextEditingController();
     _displayNameController = TextEditingController();
     _bioController = TextEditingController();
-    _getDefaultProfileData();
+    _setDefaultImageUrl();
+    _getCurrentUser();
+    super.initState();
   }
 
   @override
   void dispose() {
+    _usernameController.dispose();
     _displayNameController.dispose();
     _bioController.dispose();
     super.dispose();
   }
 
-  Future<void> _getDefaultProfileData() async {
+  void _getCurrentUser() {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       setState(() {
         _userId = user.uid;
       });
-      DocumentSnapshot<Map<String, dynamic>> userData = await FirebaseFirestore
-          .instance
-          .collection('userInfo')
-          .doc(_userId)
-          .get();
-
-      if (userData.exists) {
-        Map<String, dynamic> data = userData.data()!;
-        _displayNameController.text = data['displayName'];
-        _bioController.text = data['bio'];
-        _imageUrl = data['imageUrl'];
-      }
     }
+  }
+
+  void _setDefaultImageUrl() async {
+    // Get the default profile image URL from Firebase Storage
+    firebase_storage.Reference defaultImageRef = firebase_storage
+        .FirebaseStorage.instance
+        .ref()
+        .child('default_profile_images')
+        .child('default_pic.jpg');
+
+    _imageUrl = await defaultImageRef.getDownloadURL();
 
     setState(() {
-      _isLoading = false; // Set loading state to false after data is fetched
+      _isLoading = false;
     });
   }
 
-  Future<void> _signOut() async {
+  Future<void> _signOut(NavigatorState navigatorState) async {
     await FirebaseAuth.instance.signOut();
-    Navigator.pushReplacementNamed(context, '/login');
+    navigatorState.pushReplacementNamed('/login');
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Edit Profile'),
+        title: const Text('Create Profile'),
         actions: [
           IconButton(
-            icon: Icon(Icons.logout),
-            onPressed: _signOut,
-          ),
+              icon: const Icon(Icons.logout),
+              onPressed: () async {
+                await _signOut(Navigator.of(context));
+              })
         ],
       ),
       body: SingleChildScrollView(
@@ -85,43 +96,53 @@ class _EditProfileViewState extends State<EditProfileView> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               TextField(
-                controller: TextEditingController()..text = _userId ?? '',
+                controller: _usernameController,
                 decoration: InputDecoration(
                   labelText: 'Username',
+                  errorText: _getUsernameErrorText(),
                 ),
-                enabled: false,
+                onChanged: (value) {
+                  setState(() {
+                    _usernameValidationState = _validateUsername(value.trim());
+                  });
+                },
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               TextField(
                 controller: _displayNameController,
                 decoration: InputDecoration(
                   labelText: 'Display Name',
+                  errorText: _getDisplayNameErrorText(),
                 ),
+                onChanged: (value) {
+                  setState(() {
+                    _displayNameValidationState =
+                        _validateDisplayName(value.trim());
+                  });
+                },
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               TextField(
                 controller: _bioController,
                 maxLines: 3, // Limiting to 3 lines
                 maxLength: 400,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: 'Bio (Optional)',
                   hintText: 'Tell something about yourself',
                 ),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               _isLoading
-                  ? CircularProgressIndicator() // Show CircularProgressIndicator while loading
-                  : Container(
-                      width: MediaQuery.of(context).size.width *
-                          0.4, // Adjust width as needed
-                      height: MediaQuery.of(context).size.width *
-                          0.4, // Make the height same as width for a perfect circle
+                  ? const CircularProgressIndicator()
+                  : SizedBox(
+                      width: MediaQuery.of(context).size.width * 0.4,
+                      height: MediaQuery.of(context).size.width * 0.4,
                       child: Stack(
                         alignment: Alignment.bottomLeft,
                         children: [
                           _imageFile == null
                               ? Image.network(
-                                  _imageUrl, // Use the default image URL
+                                  _imageUrl,
                                   fit: BoxFit.cover,
                                 )
                               : GestureDetector(
@@ -175,7 +196,7 @@ class _EditProfileViewState extends State<EditProfileView> {
                             bottom: 8,
                             right: 8,
                             child: IconButton(
-                              icon: Icon(Icons.edit),
+                              icon: const Icon(Icons.edit),
                               onPressed: _pickImage,
                               tooltip: 'Change Image',
                             ),
@@ -183,10 +204,16 @@ class _EditProfileViewState extends State<EditProfileView> {
                         ],
                       ),
                     ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: _saveProfile,
-                child: Text('Save Profile'),
+                onPressed: (_userId != null &&
+                        _usernameValidationState ==
+                            FieldValidationState.valid &&
+                        _displayNameValidationState ==
+                            FieldValidationState.valid)
+                    ? _saveProfile
+                    : null,
+                child: const Text('Save Profile'),
               ),
             ],
           ),
@@ -205,72 +232,128 @@ class _EditProfileViewState extends State<EditProfileView> {
     }
   }
 
+  String? _getUsernameErrorText() {
+    if (_usernameValidationState == FieldValidationState.invalid) {
+      return 'Username: 6-14 characters, letters and numbers only.';
+    }
+    return null;
+  }
+
+  String? _getDisplayNameErrorText() {
+    if (_displayNameValidationState == FieldValidationState.invalid) {
+      return 'Display Name must be between 6 and 14 characters';
+    }
+    return null;
+  }
+
+  FieldValidationState _validateUsername(String value) {
+    if (value.isEmpty ||
+        value.length < 6 ||
+        value.length > 14 ||
+        !RegExp(r'^[a-zA-Z0-9]+$').hasMatch(value)) {
+      return FieldValidationState.invalid;
+    }
+    return FieldValidationState.valid;
+  }
+
+  FieldValidationState _validateDisplayName(String value) {
+    if (value.isEmpty || value.length < 6 || value.length > 14) {
+      return FieldValidationState.invalid;
+    }
+    return FieldValidationState.valid;
+  }
+
   void _saveProfile() async {
     if (_userId == null) {
-      // User is not authenticated, handle this case accordingly
       return;
     }
 
+    String username = _usernameController.text.trim();
     String displayName = _displayNameController.text.trim();
     String bio = _bioController.text.trim();
-    String imageUrl = ''; // Default or blank image URL
+    String imageUrl = '';
 
-    // Handle image upload if an image is selected
     if (_imageFile != null) {
-      // Delete the previous image if it exists
-      if (_imageUrl.isNotEmpty) {
+      if (_imageUrl.isNotEmpty &&
+          !_imageUrl.contains('default_profile_images')) {
         await firebase_storage.FirebaseStorage.instance
             .refFromURL(_imageUrl)
             .delete();
       }
 
-      // Upload the new image file to Firebase Storage
       firebase_storage.Reference ref = firebase_storage.FirebaseStorage.instance
-          .ref()
+          .refFromURL('gs://hidden-sig.appspot.com')
           .child('profile_images')
-          .child('$_userId.jpg'); // Use userId as image name
+          .child('${DateTime.now().millisecondsSinceEpoch}.jpg');
 
-      // Upload the file to Firebase Storage
       firebase_storage.UploadTask uploadTask = ref.putFile(_imageFile!);
 
-      // Wait for the upload to complete
       await uploadTask.whenComplete(() async {
-        // Get the download URL for the uploaded image
-        imageUrl = await ref.getDownloadURL();
+        try {
+          imageUrl = await ref.getDownloadURL();
 
-        // Save the imageUrl for future reference
-        setState(() {
-          _imageUrl = imageUrl;
-        });
+          setState(() {
+            _imageUrl = imageUrl;
+          });
 
-        // Save profile information along with the image URL to Firestore
-        await _saveProfileToFirestore(displayName, bio, imageUrl);
-      }).catchError((error) {
-        // Handle any errors that occur during the upload
-        print("Failed to upload image: $error");
+          _saveProfileToFirestore(username, displayName, bio, imageUrl);
+        } catch (error) {
+          //print("Failed to upload image: $error");
+        }
       });
     } else {
-      // If no new image is selected, just save the other profile data
-      await _saveProfileToFirestore(displayName, bio, _imageUrl);
+      _saveProfileToFirestore(username, displayName, bio, _imageUrl);
     }
   }
 
-  Future<void> _saveProfileToFirestore(
-      String displayName, String bio, String imageUrl) async {
-    await FirebaseFirestore.instance
-        .collection('userInfo')
-        .doc(_userId)
-        .update({
-      'displayName': displayName,
-      'bio': bio,
-      'imageUrl': imageUrl,
-    });
+  void _saveProfileToFirestore(
+      String username, String displayName, String bio, String imageUrl) async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    QuerySnapshot<Map<String, dynamic>> existingUsernames =
+        await FirebaseFirestore.instance
+            .collection('userInfo')
+            .where('username', isEqualTo: username)
+            .get();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Profile updated successfully'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    if (existingUsernames.docs.isNotEmpty) {
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(
+          content:
+              Text('Username already taken. Please choose a different one.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+    } else {
+      QuerySnapshot<Map<String, dynamic>> existingDocs = await FirebaseFirestore
+          .instance
+          .collection('userInfo')
+          .where('userId', isEqualTo: _userId)
+          .get();
+
+      if (existingDocs.docs.isNotEmpty) {
+        existingDocs.docs.first.reference.update({
+          'username': username,
+          'displayName': displayName,
+          'bio': bio,
+          'imageUrl': imageUrl,
+        }).then((_) {
+          Navigator.pushReplacementNamed(context, '/bottom');
+        }).catchError((error) {
+          //print("Failed to update user profile: $error");
+        });
+      } else {
+        FirebaseFirestore.instance.collection('userInfo').add({
+          'userId': _userId,
+          'username': username,
+          'displayName': displayName, // Add display name field
+          'bio': bio,
+          'imageUrl': imageUrl,
+        }).then((DocumentReference document) {
+          Navigator.pushReplacementNamed(context, '/bottom');
+        }).catchError((error) {
+          //print("Failed to add user: $error");
+        });
+      }
+    }
   }
 }

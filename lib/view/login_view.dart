@@ -74,6 +74,8 @@ class _LoginViewState extends State<LoginView> {
                       onPressed: () async {
                         final email = _emailController.text.trim();
                         final password = _passwordController.text.trim();
+                        final navigator = Navigator.of(context);
+                        final scaffoldMessenger = ScaffoldMessenger.of(context);
 
                         try {
                           final UserCredential userCredential =
@@ -85,7 +87,6 @@ class _LoginViewState extends State<LoginView> {
 
                           if (userCredential.user != null &&
                               userCredential.user!.emailVerified) {
-                            // Check if a document with the same userId exists
                             QuerySnapshot<Map<String, dynamic>> existingDocs =
                                 await FirebaseFirestore.instance
                                     .collection('userInfo')
@@ -94,63 +95,48 @@ class _LoginViewState extends State<LoginView> {
                                     .get();
 
                             if (existingDocs.docs.isNotEmpty) {
-                              // If a document with the same userId exists,
-                              // redirect to MessageBoardView
-                              Navigator.pushReplacementNamed(
-                                  context, '/bottom');
+                              navigator.pushReplacementNamed('/bottom');
                             } else {
-                              // If no document with the same userId exists,
-                              // redirect to ProfileCreationView
-                              Navigator.pushReplacementNamed(
-                                  context, '/profile_creation');
+                              navigator
+                                  .pushReplacementNamed('/profile_creation');
                             }
                           } else {
-                            // User's email is not verified
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Please verify your email to login',
-                                ),
+                            scaffoldMessenger.showSnackBar(
+                              const SnackBar(
+                                content:
+                                    Text('Please verify your email to login'),
                               ),
                             );
                           }
                         } on FirebaseAuthException catch (e) {
+                          String message;
                           if (e.code == 'user-not-found') {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('No user found for that email'),
-                              ),
-                            );
+                            message = 'No user found for that email';
                           } else if (e.code == 'wrong-password') {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Wrong password provided for that user',
-                                ),
-                              ),
-                            );
+                            message = 'Wrong password provided for that user';
                           } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Error: ${e.message}'),
-                              ),
-                            );
+                            message = 'Error: ${e.message}';
                           }
+                          scaffoldMessenger.showSnackBar(
+                            SnackBar(
+                              content: Text(message),
+                            ),
+                          );
                         } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          scaffoldMessenger.showSnackBar(
                             SnackBar(
                               content: Text('Error: $e'),
                             ),
                           );
                         }
                       },
-                      child: Text('Login'),
+                      child: const Text('Login'),
                     ),
                     TextButton(
                       onPressed: () {
                         Navigator.pushNamed(context, '/register');
                       },
-                      child: Text('Register'),
+                      child: const Text('Register'),
                     ),
                   ],
                 ),

@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart' as firebase_storage;
 import 'dart:io';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
-enum FieldValidationState { Initial, Valid, Invalid }
+enum FieldValidationState { initial, valid, invalid }
 
 class ProfileCreationView extends StatefulWidget {
   const ProfileCreationView({Key? key}) : super(key: key);
 
   @override
-  _ProfileCreationViewState createState() => _ProfileCreationViewState();
+  State<ProfileCreationView> createState() => _ProfileCreationViewState();
 }
 
 class _ProfileCreationViewState extends State<ProfileCreationView> {
@@ -19,15 +20,13 @@ class _ProfileCreationViewState extends State<ProfileCreationView> {
   late final TextEditingController _displayNameController;
   late final TextEditingController _bioController;
   late String? _userId;
-  File? _imageFile; // Initialize _imageFile with null
-  Offset _imagePosition =
-      Offset.zero; // Initialize _imagePosition with Offset.zero
+  File? _imageFile;
+  Offset _imagePosition = Offset.zero;
   String _imageUrl = '';
-  FieldValidationState _usernameValidationState = FieldValidationState.Initial;
+  FieldValidationState _usernameValidationState = FieldValidationState.initial;
   FieldValidationState _displayNameValidationState =
-      FieldValidationState.Initial;
-  bool _isLoading =
-      true; // Variable to track whether the image is loading or not
+      FieldValidationState.initial;
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -57,7 +56,6 @@ class _ProfileCreationViewState extends State<ProfileCreationView> {
   }
 
   void _setDefaultImageUrl() async {
-    // Get the default profile image URL from Firebase Storage
     firebase_storage.Reference defaultImageRef = firebase_storage
         .FirebaseStorage.instance
         .ref()
@@ -66,15 +64,14 @@ class _ProfileCreationViewState extends State<ProfileCreationView> {
 
     _imageUrl = await defaultImageRef.getDownloadURL();
 
-    // Update the state to reflect the default image URL
     setState(() {
-      _isLoading = false; // Set loading state to false after image is loaded
+      _isLoading = false;
     });
   }
 
-  Future<void> _signOut() async {
+  Future<void> _signOut(NavigatorState navigatorState) async {
     await FirebaseAuth.instance.signOut();
-    Navigator.pushReplacementNamed(context, '/login');
+    navigatorState.pushReplacementNamed('/login');
   }
 
   @override
@@ -84,9 +81,10 @@ class _ProfileCreationViewState extends State<ProfileCreationView> {
         title: const Text('Create Profile'),
         actions: [
           IconButton(
-            icon: Icon(Icons.logout),
-            onPressed: _signOut,
-          ),
+              icon: const Icon(Icons.logout),
+              onPressed: () async {
+                await _signOut(Navigator.of(context));
+              })
         ],
       ),
       body: SingleChildScrollView(
@@ -107,7 +105,7 @@ class _ProfileCreationViewState extends State<ProfileCreationView> {
                   });
                 },
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               TextField(
                 controller: _displayNameController,
                 decoration: InputDecoration(
@@ -121,30 +119,28 @@ class _ProfileCreationViewState extends State<ProfileCreationView> {
                   });
                 },
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               TextField(
                 controller: _bioController,
                 maxLines: 3, // Limiting to 3 lines
                 maxLength: 400,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: 'Bio (Optional)',
                   hintText: 'Tell something about yourself',
                 ),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               _isLoading
-                  ? CircularProgressIndicator() // Show CircularProgressIndicator while loading
-                  : Container(
-                      width: MediaQuery.of(context).size.width *
-                          0.4, // Adjust width as needed
-                      height: MediaQuery.of(context).size.width *
-                          0.4, // Make the height same as width for a perfect circle
+                  ? const CircularProgressIndicator()
+                  : SizedBox(
+                      width: MediaQuery.of(context).size.width * 0.4,
+                      height: MediaQuery.of(context).size.width * 0.4,
                       child: Stack(
                         alignment: Alignment.bottomLeft,
                         children: [
                           _imageFile == null
                               ? Image.network(
-                                  _imageUrl, // Use the default image URL
+                                  _imageUrl,
                                   fit: BoxFit.cover,
                                 )
                               : GestureDetector(
@@ -198,7 +194,7 @@ class _ProfileCreationViewState extends State<ProfileCreationView> {
                             bottom: 8,
                             right: 8,
                             child: IconButton(
-                              icon: Icon(Icons.edit),
+                              icon: const Icon(Icons.edit),
                               onPressed: _pickImage,
                               tooltip: 'Change Image',
                             ),
@@ -206,16 +202,16 @@ class _ProfileCreationViewState extends State<ProfileCreationView> {
                         ],
                       ),
                     ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: (_userId != null &&
                         _usernameValidationState ==
-                            FieldValidationState.Valid &&
+                            FieldValidationState.valid &&
                         _displayNameValidationState ==
-                            FieldValidationState.Valid)
+                            FieldValidationState.valid)
                     ? _saveProfile
                     : null,
-                child: Text('Save Profile'),
+                child: const Text('Save Profile'),
               ),
             ],
           ),
@@ -235,14 +231,14 @@ class _ProfileCreationViewState extends State<ProfileCreationView> {
   }
 
   String? _getUsernameErrorText() {
-    if (_usernameValidationState == FieldValidationState.Invalid) {
+    if (_usernameValidationState == FieldValidationState.invalid) {
       return 'Username: 6-14 characters, letters and numbers only.';
     }
     return null;
   }
 
   String? _getDisplayNameErrorText() {
-    if (_displayNameValidationState == FieldValidationState.Invalid) {
+    if (_displayNameValidationState == FieldValidationState.invalid) {
       return 'Display Name must be between 6 and 14 characters';
     }
     return null;
@@ -253,31 +249,29 @@ class _ProfileCreationViewState extends State<ProfileCreationView> {
         value.length < 6 ||
         value.length > 14 ||
         !RegExp(r'^[a-zA-Z0-9]+$').hasMatch(value)) {
-      return FieldValidationState.Invalid;
+      return FieldValidationState.invalid;
     }
-    return FieldValidationState.Valid;
+    return FieldValidationState.valid;
   }
 
   FieldValidationState _validateDisplayName(String value) {
     if (value.isEmpty || value.length < 6 || value.length > 14) {
-      return FieldValidationState.Invalid;
+      return FieldValidationState.invalid;
     }
-    return FieldValidationState.Valid;
+    return FieldValidationState.valid;
   }
 
   void _saveProfile() async {
     if (_userId == null) {
-      // User is not authenticated, handle this case accordingly
       return;
     }
 
     String username = _usernameController.text.trim();
     String displayName = _displayNameController.text.trim();
     String bio = _bioController.text.trim();
-    String imageUrl = ''; // Default or blank image URL
+    String imageUrl = '';
 
     if (_imageFile != null) {
-      // Delete the previous image if it exists
       if (_imageUrl.isNotEmpty &&
           !_imageUrl.contains('default_profile_images')) {
         await firebase_storage.FirebaseStorage.instance
@@ -285,101 +279,55 @@ class _ProfileCreationViewState extends State<ProfileCreationView> {
             .delete();
       }
 
-      // Upload the new image file to Firebase Storage
       firebase_storage.Reference ref = firebase_storage.FirebaseStorage.instance
           .refFromURL('gs://hidden-sig.appspot.com')
           .child('profile_images')
           .child('${DateTime.now().millisecondsSinceEpoch}.jpg');
 
-      // Upload the file to Firebase Storage
       firebase_storage.UploadTask uploadTask = ref.putFile(_imageFile!);
 
-      // Wait for the upload to complete
       await uploadTask.whenComplete(() async {
         try {
-          // Get the download URL for the uploaded image
           imageUrl = await ref.getDownloadURL();
 
-          // Save the imageUrl for future reference
           setState(() {
             _imageUrl = imageUrl;
           });
 
-          // Save profile information along with the image URL to Firestore
           _saveProfileToFirestore(username, displayName, bio, imageUrl);
         } catch (error) {
-          // Handle any errors that occur during the upload
           //print("Failed to upload image: $error");
         }
       });
     } else {
-      // No image selected
-      _saveProfileToFirestore(
-          username, displayName, bio, _imageUrl); // Pass _imageUrl here
+      _saveProfileToFirestore(username, displayName, bio, _imageUrl);
     }
   }
 
-  void _saveProfileToFirestore(
+  Future<void> _saveProfileToFirestore(
       String username, String displayName, String bio, String imageUrl) async {
-    // Check if the username is already taken
-    QuerySnapshot<Map<String, dynamic>> existingUsernames =
-        await FirebaseFirestore.instance
-            .collection('userInfo')
-            .where('username', isEqualTo: username)
-            .get();
-
-    if (existingUsernames.docs.isNotEmpty) {
-      // If the username is already taken, show an error message to the user
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content:
-              Text('Username already taken. Please choose a different one.'),
-          duration: Duration(seconds: 3),
-        ),
-      );
-    } else {
-      // If the username is available, proceed to save the profile
-      // Check if a document with the same userId already exists
-      QuerySnapshot<Map<String, dynamic>> existingDocs = await FirebaseFirestore
-          .instance
-          .collection('userInfo')
-          .where('userId', isEqualTo: _userId)
-          .get();
-
-      if (existingDocs.docs.isNotEmpty) {
-        // If a document with the same userId exists, update its fields
-        existingDocs.docs.first.reference.update({
-          'username': username,
-          'displayName': displayName, // Add display name field
-          'bio': bio,
-          'imageUrl': imageUrl,
-          // Add other fields as needed
-        }).then((_) {
-          // Profile information updated successfully
-          // Navigate the user to the message board
-          Navigator.pushReplacementNamed(context, '/bottom');
-        }).catchError((error) {
-          // Handle any errors that occur during the operation
-          print("Failed to update user profile: $error");
-        });
-      } else {
-        // If no document with the same userId exists, add a new document
-        FirebaseFirestore.instance.collection('userInfo').add({
+    try {
+      final response = await http.post(
+        Uri.parse('http://10.0.2.2:3000/api/user/saveProfile'),
+        body: jsonEncode({
           'userId': _userId,
           'username': username,
-          'displayName': displayName, // Add display name field
+          'displayName': displayName,
           'bio': bio,
           'imageUrl': imageUrl,
-          // Add other fields as needed
-        }).then((DocumentReference document) {
-          // Profile information saved successfully
-          // Navigate the user to the message board
-          Navigator.pushReplacementNamed(context, '/bottom');
-        }).catchError((error) {
-          // Handle any errors that occur during the operation
-          print("Failed to add user: $error");
-        });
+        }),
+        headers: {'Content-Type': 'application/json'},
+      );
+      if (response.statusCode == 200) {
+        print('User profile saved successfully');
+        Navigator.pushReplacementNamed(context, '/bottom');
+      } else {
+        print('Failed to save user profile');
+        // Handle error
       }
+    } catch (e) {
+      print('Error saving user profile: $e');
+      // Handle error
     }
   }
 }

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:developer' as developer;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:hiddensig/custom_bottom_navigation_bar.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class MessageCreationPage extends StatefulWidget {
   const MessageCreationPage({Key? key}) : super(key: key);
@@ -16,7 +18,6 @@ class _MessageCreationPageState extends State<MessageCreationPage> {
   final List<String> _convertedMessage = [];
   final List<bool> _letterTapped = [];
   int _clicksToUnlock = 1;
-  // int _totalClicksToUnlock = 1;
 
   late User? _user;
 
@@ -25,7 +26,6 @@ class _MessageCreationPageState extends State<MessageCreationPage> {
     super.initState();
     _user = FirebaseAuth.instance.currentUser;
     _messageController.addListener(_onMessageChange);
-    //_totalClicksToUnlock = _clicksToUnlock; // Set initial value
   }
 
   @override
@@ -101,7 +101,7 @@ class _MessageCreationPageState extends State<MessageCreationPage> {
   Future<void> _uploadToFirestore() async {
     try {
       if (_user == null) {
-        // Handle the case where the user is not authenticated (do this later)
+        developer.log('data:222');
         return;
       }
 
@@ -129,20 +129,34 @@ class _MessageCreationPageState extends State<MessageCreationPage> {
         }
       }
       String hiddenInputText = hiddenInputWords.join(' ');
+      final response = await http
+          .post(
+            Uri.parse('http://10.0.2.2:3000/api/messages'),
+            headers: <String, String>{
+              'Content-Type': 'application/json; charset=UTF-8',
+            },
+            body: jsonEncode(<String, dynamic>{
+              'userId': _user!.uid,
+              'inputText': _messageController.text,
+              'hiddenInputText': hiddenInputText,
+              'hiddenTextInfo': hiddenTextInfo,
+              '_clicksToUnlock': _clicksToUnlock,
+              'hiddenTextCount': hiddenTextCount,
+            }),
+          )
+          .timeout(const Duration(seconds: 5));
 
-      await FirebaseFirestore.instance.collection('messages').add({
-        'userId': _user!.uid,
-        'inputText': _messageController.text,
-        'hiddenInputText': hiddenInputText,
-        'hiddenInputTextUpdate': hiddenInputText,
-        'isMessageUnlock': false,
-        'totalClicksToUnlock': _clicksToUnlock * hiddenTextCount,
-        'totalClicksRemain': _clicksToUnlock * hiddenTextCount,
-        'hiddenTextCount': hiddenTextCount,
-        'remainHiddenTextCount': hiddenTextCount,
-        'hiddenTextInfo': hiddenTextInfo,
-      });
+      developer.log('Response status code: ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        developer.log('data:22');
+      } else {
+        developer.log('data:1');
+      }
+
+      developer.log('Response status code: ${response.statusCode}');
     } catch (e) {
+      developer.log('Response status code: $e');
       //print('Error uploading to Firestore: $e');
     }
   }
